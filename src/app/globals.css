@@ -2,26 +2,282 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Design Tokens ─────────────────────────────────────────── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background:    #090d14;
+  --surface:       #0e1420;
+  --card:          #111827;
+  --card-hover:    #1a2235;
+  --border:        #1e2a3a;
+  --border-subtle: #141c28;
+  --foreground:    #e2e8f0;
+  --muted:         #1e2a3a;
+  --muted-fg:      #64748b;
+  --accent:        #1d4ed8;
+  --accent-fg:     #93c5fd;
+
+  /* Risk colors */
+  --risk-low:      #10b981;
+  --risk-medium:   #f59e0b;
+  --risk-high:     #f97316;
+  --risk-critical: #ef4444;
+
+  /* Status colors */
+  --status-active:       #10b981;
+  --status-low-traffic:  #f59e0b;
+  --status-unused:       #64748b;
+  --status-deprecated:   #a855f7;
+  --status-undocumented: #ec4899;
+  --status-at-risk:      #ef4444;
+
+  /* Spacing */
+  --sidebar-w: 224px;
+  --header-h:  48px;
+
+  /* Fonts */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* ── Base ──────────────────────────────────────────────────── */
+@layer base {
+  *, *::before, *::after {
+    border-color: var(--border);
+  }
+
+  html {
+    @apply antialiased;
+    font-family: var(--font-sans);
+    background-color: var(--background);
+    color: var(--foreground);
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background: #1d4ed840;
+    color: #93c5fd;
+  }
+
+  /* Scrollbars */
+  ::-webkit-scrollbar       { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #1e2a3a; border-radius: 999px; }
+  ::-webkit-scrollbar-thumb:hover { background: #2a3a50; }
+
+  /* Focus ring */
+  :focus-visible {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
   }
 }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+/* ── Component Utilities ───────────────────────────────────── */
+@layer components {
+  /* Cards */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+  }
+  .card-hover {
+    @apply card transition-all duration-200;
+  }
+  .card-hover:hover {
+    background: var(--card-hover);
+    border-color: #2a3a50;
+    transform: translateY(-1px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+
+  /* Glass */
+  .glass {
+    background: rgba(14, 20, 32, 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+
+  /* Stat card */
+  .stat-card {
+    @apply card p-4 flex flex-col gap-1;
+    position: relative;
+    overflow: hidden;
+  }
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 3px;
+    border-radius: 0 999px 999px 0;
+  }
+  .stat-card.stat-white::before  { background: #94a3b8; }
+  .stat-card.stat-green::before  { background: var(--risk-low); }
+  .stat-card.stat-amber::before  { background: var(--risk-medium); }
+  .stat-card.stat-gray::before   { background: var(--status-unused); }
+  .stat-card.stat-purple::before { background: var(--status-deprecated); }
+  .stat-card.stat-red::before    { background: var(--risk-critical); }
+
+  /* Badge */
+  .badge {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium border;
+  }
+  .badge-risk-low      { @apply badge text-emerald-400 bg-emerald-400/10 border-emerald-400/20; }
+  .badge-risk-medium   { @apply badge text-amber-400  bg-amber-400/10  border-amber-400/20; }
+  .badge-risk-high     { @apply badge text-orange-400 bg-orange-400/10 border-orange-400/20; }
+  .badge-risk-critical { @apply badge text-red-400    bg-red-400/10    border-red-400/20; }
+
+  /* Button */
+  .btn {
+    @apply inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-150 cursor-pointer select-none;
+  }
+  .btn-primary {
+    @apply btn bg-blue-600 text-white hover:bg-blue-500 active:scale-95;
+  }
+  .btn-ghost {
+    @apply btn text-slate-400 hover:text-white hover:bg-white/5 active:scale-95;
+  }
+  .btn-danger {
+    @apply btn text-red-400 hover:text-white hover:bg-red-500/20 active:scale-95;
+  }
+
+  /* Input */
+  .input {
+    @apply w-full px-3 py-1.5 rounded-md text-sm text-slate-200 bg-[#0e1420] border border-[#1e2a3a] placeholder:text-slate-600 focus:border-blue-500/60 focus:outline-none transition-colors;
+  }
+
+  /* Filter chip */
+  .chip {
+    @apply inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border cursor-pointer transition-all duration-150 select-none;
+    border-color: var(--border);
+    color: var(--muted-fg);
+    background: transparent;
+  }
+  .chip:hover {
+    border-color: #2a3a50;
+    color: var(--foreground);
+  }
+  .chip.chip-active {
+    color: #93c5fd;
+    background: #1d4ed820;
+    border-color: #1d4ed860;
+  }
+
+  /* Table */
+  .data-table {
+    @apply w-full text-sm;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  .data-table thead th {
+    @apply px-4 py-2.5 text-left text-xs font-medium text-slate-500 uppercase tracking-wide;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .data-table thead th:first-child { border-radius: 0; }
+  .data-table tbody tr {
+    @apply transition-colors duration-100 cursor-pointer;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .data-table tbody tr:hover { background: var(--card-hover); }
+  .data-table tbody td { @apply px-4 py-2.5; }
+
+  /* Section label */
+  .section-label {
+    @apply text-[11px] font-semibold uppercase tracking-widest text-slate-500;
+  }
+}
+
+/* ── Keyframe Animations ───────────────────────────────────── */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(-16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes slide-in-right {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); }
+  50%       { box-shadow: 0 0 0 4px rgba(239,68,68,0.2); }
+}
+@keyframes dash-march {
+  to { stroke-dashoffset: -30; }
+}
+@keyframes count-up {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes gradient-x {
+  0%, 100% { background-position: 0% 50%; }
+  50%       { background-position: 100% 50%; }
 }
 
 @layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
+  .animate-fade-in        { animation: fade-in 0.35s ease both; }
+  .animate-slide-left     { animation: slide-in-left 0.3s ease both; }
+  .animate-slide-right    { animation: slide-in-right 0.25s ease both; }
+  .animate-pulse-glow     { animation: pulse-glow 2s ease-in-out infinite; }
+  .animate-dash           { animation: dash-march 1.5s linear infinite; }
+  .animate-spin-slow      { animation: spin-slow 8s linear infinite; }
+  .animate-gradient-x     { animation: gradient-x 4s ease infinite; background-size: 200% 200%; }
+  .text-balance           { text-wrap: balance; }
+  .critical-glow          { animation: pulse-glow 2s ease-in-out infinite; }
+  .delay-100 { animation-delay: 0.1s; }
+  .delay-200 { animation-delay: 0.2s; }
+  .delay-300 { animation-delay: 0.3s; }
+}
+
+/* ── React Flow overrides ──────────────────────────────────── */
+.react-flow__background { background-color: var(--surface) !important; }
+.react-flow__node {
+  border-radius: 6px !important;
+  font-family: var(--font-mono) !important;
+  font-size: 11px !important;
+}
+.react-flow__edge-path { stroke: #2a3a50; }
+.react-flow__controls {
+  background: var(--card) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  overflow: hidden;
+}
+.react-flow__controls-button {
+  background: var(--card) !important;
+  color: var(--muted-fg) !important;
+  border-color: var(--border) !important;
+  transition: background 0.15s !important;
+}
+.react-flow__controls-button:hover {
+  background: var(--card-hover) !important;
+  color: var(--foreground) !important;
+}
+.react-flow__minimap {
+  background: var(--card) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  overflow: hidden;
+}
+
+/* ── Critical border glow ──────────────────────────────────── */
+@keyframes critical-border {
+  0%, 100% { border-color: rgba(239,68,68,0.3); }
+  50%       { border-color: rgba(239,68,68,0.7); }
+}
+.critical-border-pulse {
+  animation: critical-border 2s ease-in-out infinite;
 }

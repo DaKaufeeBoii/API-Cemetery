@@ -1,0 +1,213 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: API Cemetery — Serverless backend
+
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    MemorySize: 512
+    Timeout: 30
+    Environment:
+      Variables:
+        PROJECTS_TABLE: !Ref ProjectsTable
+        ENDPOINTS_TABLE: !Ref EndpointsTable
+        CONSUMERS_TABLE: !Ref ConsumersTable
+        DEPENDENCIES_TABLE: !Ref DependenciesTable
+        ANALYSIS_TABLE: !Ref AnalysisTable
+        S3_BUCKET: !Ref DataBucket
+
+Resources:
+  DataBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "api-cemetery-data-${AWS::AccountId}"
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOld
+            Status: Enabled
+            ExpirationInDays: 90
+
+  ProjectsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: api-cemetery-projects
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+
+  EndpointsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: api-cemetery-endpoints
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: projectId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: ProjectIndex
+          KeySchema:
+            - AttributeName: projectId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  ConsumersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: api-cemetery-consumers
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+
+  DependenciesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: api-cemetery-dependencies
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: fromEndpointId
+          AttributeType: S
+        - AttributeName: toEndpointId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: fromEndpointId
+          KeyType: HASH
+        - AttributeName: toEndpointId
+          KeyType: RANGE
+
+  AnalysisTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: api-cemetery-analysis
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: endpointId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: endpointId
+          KeyType: HASH
+
+  ProjectsApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: prod
+      BinaryMediaTypes:
+        - "~1"
+      CorsConfiguration:
+        AllowMethods: "'GET,POST,OPTIONS'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
+        AllowOrigins: "'*'"
+      Auth:
+        DefaultAuthorizer: None
+
+  ProjectListFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/handlers/
+      Handler: listProjects.handler
+      Events:
+        ListProjects:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ProjectsApi
+            Path: /projects
+            Method: get
+
+  ProjectGetFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/handlers/
+      Handler: getProject.handler
+      Events:
+        GetProject:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ProjectsApi
+            Path: /projects/{projectId}
+            Method: get
+
+  EndpointsListFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/handlers/
+      Handler: listEndpoints.handler
+      Events:
+        ListEndpoints:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ProjectsApi
+            Path: /projects/{projectId}/endpoints
+            Method: get
+
+  EndpointDetailFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/handlers/
+      Handler: getEndpoint.handler
+      Events:
+        GetEndpoint:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ProjectsApi
+            Path: /projects/{projectId}/endpoints/{endpointId}
+            Method: get
+
+  IngestFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/handlers/
+      Handler: ingest.handler
+      Events:
+        IngestEndpoint:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ProjectsApi
+            Path: /projects/{projectId}/ingest
+            Method: post
+
+  AnalyzeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/handlers/
+      Handler: analyze.handler
+      Events:
+        AnalyzeEndpoint:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ProjectsApi
+            Path: /projects/{projectId}/analyze
+            Method: post
+
+  DeleteAnalysisFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/handlers/
+      Handler: deleteAnalysis.handler
+      Events:
+        DeleteAnalysis:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ProjectsApi
+            Path: /endpoints/{endpointId}/delete-analysis
+            Method: post
+
+Outputs:
+  ApiUrl:
+    Description: API Gateway endpoint
+    Value: !Sub "https://${ProjectsApi}.execute-api.${AWS::Region}.amazonaws.com/prod/"
+  DataBucket:
+    Description: S3 bucket for uploads
+    Value: !Ref DataBucket
