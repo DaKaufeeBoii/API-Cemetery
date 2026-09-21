@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:export": "next build",
+    "deploy:aws": "powershell -ExecutionPolicy Bypass -File ./deploy-aws.ps1",
     "start": "next start",
     "lint": "next lint"
   },

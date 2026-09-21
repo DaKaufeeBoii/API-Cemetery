@@ -1,10 +1,11 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: API Cemetery — Serverless backend
+Description: API Cemetery — Full Stack Serverless Backend and CloudFront Hosting
 
 Globals:
   Function:
     Runtime: nodejs20.x
+    CodeUri: backend/handlers/
     MemorySize: 512
     Timeout: 30
     Environment:
@@ -17,6 +18,46 @@ Globals:
         S3_BUCKET: !Ref DataBucket
 
 Resources:
+  # ==========================================
+  # IAM Execution Role
+  # ==========================================
+  FunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: CemeteryFunctionPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:*
+                Resource:
+                  - !GetAtt ProjectsTable.Arn
+                  - !GetAtt EndpointsTable.Arn
+                  - !Sub "${EndpointsTable.Arn}/*"
+                  - !GetAtt ConsumersTable.Arn
+                  - !GetAtt DependenciesTable.Arn
+                  - !GetAtt AnalysisTable.Arn
+              - Effect: Allow
+                Action:
+                  - s3:*
+                Resource:
+                  - !Sub "${DataBucket.Arn}/*"
+                  - !GetAtt DataBucket.Arn
+
+  # ==========================================
+  # Storage & Database Resources
+  # ==========================================
   DataBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -100,24 +141,25 @@ Resources:
         - AttributeName: endpointId
           KeyType: HASH
 
+  # ==========================================
+  # API Gateway & Lambda Functions
+  # ==========================================
   ProjectsApi:
     Type: AWS::Serverless::Api
     Properties:
       StageName: prod
-      BinaryMediaTypes:
-        - "~1"
-      CorsConfiguration:
+      Cors:
         AllowMethods: "'GET,POST,OPTIONS'"
         AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
-        AllowOrigins: "'*'"
+        AllowOrigin: "'*'"
       Auth:
         DefaultAuthorizer: None
 
   ProjectListFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: backend/handlers/
       Handler: listProjects.handler
+      Role: !GetAtt FunctionRole.Arn
       Events:
         ListProjects:
           Type: Api
@@ -129,8 +171,8 @@ Resources:
   ProjectGetFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: backend/handlers/
       Handler: getProject.handler
+      Role: !GetAtt FunctionRole.Arn
       Events:
         GetProject:
           Type: Api
@@ -142,8 +184,8 @@ Resources:
   EndpointsListFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: backend/handlers/
       Handler: listEndpoints.handler
+      Role: !GetAtt FunctionRole.Arn
       Events:
         ListEndpoints:
           Type: Api
@@ -155,8 +197,8 @@ Resources:
   EndpointDetailFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: backend/handlers/
       Handler: getEndpoint.handler
+      Role: !GetAtt FunctionRole.Arn
       Events:
         GetEndpoint:
           Type: Api
@@ -168,8 +210,8 @@ Resources:
   IngestFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: backend/handlers/
       Handler: ingest.handler
+      Role: !GetAtt FunctionRole.Arn
       Events:
         IngestEndpoint:
           Type: Api
@@ -181,8 +223,8 @@ Resources:
   AnalyzeFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: backend/handlers/
       Handler: analyze.handler
+      Role: !GetAtt FunctionRole.Arn
       Events:
         AnalyzeEndpoint:
           Type: Api
@@ -194,8 +236,8 @@ Resources:
   DeleteAnalysisFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: backend/handlers/
       Handler: deleteAnalysis.handler
+      Role: !GetAtt FunctionRole.Arn
       Events:
         DeleteAnalysis:
           Type: Api
@@ -204,10 +246,98 @@ Resources:
             Path: /endpoints/{endpointId}/delete-analysis
             Method: post
 
+  # ==========================================
+  # Frontend S3 + CloudFront Hosting
+  # ==========================================
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "api-cemetery-frontend-${AWS::AccountId}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  CloudFrontOAC:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "api-cemetery-oac-${AWS::AccountId}"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  FrontendDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        Comment: "API Cemetery Web Application CDN"
+        HttpVersion: http2and3
+        PriceClass: PriceClass_100
+        Origins:
+          - Id: S3HostingOrigin
+            DomainName: !GetAtt FrontendBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt CloudFrontOAC.Id
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+        DefaultCacheBehavior:
+          TargetOriginId: S3HostingOrigin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachedMethods:
+            - GET
+            - HEAD
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+          Compress: true
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 0
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 0
+
+  HostingBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowCloudFrontServicePrincipal
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub "${FrontendBucket.Arn}/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${FrontendDistribution}"
+
 Outputs:
+  CloudFrontUrl:
+    Description: Live Public URL for API Cemetery Web Application
+    Value: !Sub "https://${FrontendDistribution.DomainName}"
+  CloudFrontDistributionId:
+    Description: CloudFront Distribution ID (for cache invalidations)
+    Value: !Ref FrontendDistribution
+  HostingBucketName:
+    Description: S3 Bucket hosting the frontend static assets
+    Value: !Ref FrontendBucket
   ApiUrl:
     Description: API Gateway endpoint
     Value: !Sub "https://${ProjectsApi}.execute-api.${AWS::Region}.amazonaws.com/prod/"
   DataBucket:
-    Description: S3 bucket for uploads
+    Description: S3 bucket for raw ingestion uploads
     Value: !Ref DataBucket
