@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 
 Write-Host "======================================================" -ForegroundColor Cyan
-Write-Host "    API Cemetery — AWS Full-Stack Deployment" -ForegroundColor Cyan
+Write-Host "    API Cemetery - AWS Full-Stack Deployment" -ForegroundColor Cyan
 Write-Host "======================================================" -ForegroundColor Cyan
 
 # 1. Check AWS Credentials
