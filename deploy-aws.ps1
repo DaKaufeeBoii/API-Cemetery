@@ -89,7 +89,7 @@ if ($distId) {
 
 Write-Host ""
 Write-Host "======================================================" -ForegroundColor Green
-Write-Host "🎉 DEPLOYMENT COMPLETE!" -ForegroundColor Green
+Write-Host "[SUCCESS] DEPLOYMENT COMPLETE!" -ForegroundColor Green
 Write-Host "======================================================" -ForegroundColor Green
 Write-Host "Frontend URL:    $cloudFrontUrl" -ForegroundColor Cyan
 Write-Host "API Gateway URL: $apiUrl" -ForegroundColor Cyan
