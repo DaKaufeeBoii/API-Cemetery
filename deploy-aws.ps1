@@ -52,14 +52,13 @@ $outputsJson = aws cloudformation describe-stacks `
     --region $region
 $outputs = $outputsJson | ConvertFrom-Json
 
-$cloudFrontUrl = ($outputs | Where-Object { $_.OutputKey -eq "CloudFrontUrl" }).OutputValue
-$distId = ($outputs | Where-Object { $_.OutputKey -eq "CloudFrontDistributionId" }).OutputValue
+$websiteUrl = ($outputs | Where-Object { $_.OutputKey -eq "WebsiteUrl" }).OutputValue
 $hostingBucket = ($outputs | Where-Object { $_.OutputKey -eq "HostingBucketName" }).OutputValue
 $apiUrl = ($outputs | Where-Object { $_.OutputKey -eq "ApiUrl" }).OutputValue
 
-Write-Host "CloudFront URL: $cloudFrontUrl" -ForegroundColor Cyan
+Write-Host "Website URL:     $websiteUrl" -ForegroundColor Cyan
 Write-Host "API Gateway URL: $apiUrl" -ForegroundColor Cyan
-Write-Host "Hosting Bucket: $hostingBucket" -ForegroundColor Cyan
+Write-Host "Hosting Bucket:  $hostingBucket" -ForegroundColor Cyan
 
 # Update .env.production with live API URL
 Set-Content -Path ".\.env.production" -Value @("NEXT_PUBLIC_PROJECT_ID=proj-demo-001", "NEXT_PUBLIC_API_URL=$apiUrl")
@@ -73,26 +72,21 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-# 6. Upload Assets & Invalidate Cache
+# 6. Upload Assets
 Write-Host ""
-Write-Host "[6/6] Syncing assets to S3 and invalidating CloudFront..." -ForegroundColor Yellow
+Write-Host "[6/6] Syncing assets to S3 Website Hosting Bucket..." -ForegroundColor Yellow
 aws s3 sync out/ "s3://$hostingBucket" --delete --region $region
 if ($LASTEXITCODE -ne 0) {
     Write-Error "S3 sync failed."
     exit 1
 }
 
-if ($distId) {
-    Write-Host "Invalidating CloudFront cache for distribution $distId..." -ForegroundColor Yellow
-    aws cloudfront create-invalidation --distribution-id $distId --paths "/*" --region $region | Out-Null
-}
-
 Write-Host ""
 Write-Host "======================================================" -ForegroundColor Green
 Write-Host "[SUCCESS] DEPLOYMENT COMPLETE!" -ForegroundColor Green
 Write-Host "======================================================" -ForegroundColor Green
-Write-Host "Frontend URL:    $cloudFrontUrl" -ForegroundColor Cyan
-Write-Host "API Gateway URL: $apiUrl" -ForegroundColor Cyan
-Write-Host "Hosting S3:      s3://$hostingBucket" -ForegroundColor Cyan
+Write-Host "Live Website URL: $websiteUrl" -ForegroundColor Cyan
+Write-Host "API Gateway URL:  $apiUrl" -ForegroundColor Cyan
+Write-Host "Hosting S3:       s3://$hostingBucket" -ForegroundColor Cyan
 Write-Host "======================================================" -ForegroundColor Green
 Write-Host ""

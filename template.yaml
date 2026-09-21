@@ -247,66 +247,20 @@ Resources:
             Method: post
 
   # ==========================================
-  # Frontend S3 + CloudFront Hosting
+  # Frontend S3 Static Website Hosting
   # ==========================================
   FrontendBucket:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub "api-cemetery-frontend-${AWS::AccountId}"
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: index.html
       PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-
-  CloudFrontOAC:
-    Type: AWS::CloudFront::OriginAccessControl
-    Properties:
-      OriginAccessControlConfig:
-        Name: !Sub "api-cemetery-oac-${AWS::AccountId}"
-        OriginAccessControlOriginType: s3
-        SigningBehavior: always
-        SigningProtocol: sigv4
-
-  FrontendDistribution:
-    Type: AWS::CloudFront::Distribution
-    Properties:
-      DistributionConfig:
-        Enabled: true
-        DefaultRootObject: index.html
-        Comment: "API Cemetery Web Application CDN"
-        HttpVersion: http2and3
-        PriceClass: PriceClass_100
-        Origins:
-          - Id: S3HostingOrigin
-            DomainName: !GetAtt FrontendBucket.RegionalDomainName
-            OriginAccessControlId: !GetAtt CloudFrontOAC.Id
-            S3OriginConfig:
-              OriginAccessIdentity: ""
-        DefaultCacheBehavior:
-          TargetOriginId: S3HostingOrigin
-          ViewerProtocolPolicy: redirect-to-https
-          AllowedMethods:
-            - GET
-            - HEAD
-            - OPTIONS
-          CachedMethods:
-            - GET
-            - HEAD
-          ForwardedValues:
-            QueryString: false
-            Cookies:
-              Forward: none
-          Compress: true
-        CustomErrorResponses:
-          - ErrorCode: 403
-            ResponseCode: 200
-            ResponsePagePath: /index.html
-            ErrorCachingMinTTL: 0
-          - ErrorCode: 404
-            ResponseCode: 200
-            ResponsePagePath: /index.html
-            ErrorCachingMinTTL: 0
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
 
   HostingBucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -315,23 +269,16 @@ Resources:
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
-          - Sid: AllowCloudFrontServicePrincipal
+          - Sid: PublicReadForWebsite
             Effect: Allow
-            Principal:
-              Service: cloudfront.amazonaws.com
+            Principal: "*"
             Action: s3:GetObject
             Resource: !Sub "${FrontendBucket.Arn}/*"
-            Condition:
-              StringEquals:
-                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${FrontendDistribution}"
 
 Outputs:
-  CloudFrontUrl:
+  WebsiteUrl:
     Description: Live Public URL for API Cemetery Web Application
-    Value: !Sub "https://${FrontendDistribution.DomainName}"
-  CloudFrontDistributionId:
-    Description: CloudFront Distribution ID (for cache invalidations)
-    Value: !Ref FrontendDistribution
+    Value: !GetAtt FrontendBucket.WebsiteURL
   HostingBucketName:
     Description: S3 Bucket hosting the frontend static assets
     Value: !Ref FrontendBucket
